@@ -1,0 +1,319 @@
+From 796746bce572d9598efffa2a503bb2fd4f689280 Mon Sep 17 00:00:00 2001
+From: "Zinoviev, Vladimir" <vladimir.zinoviev@intel.com>
+Date: Thu, 14 May 2020 15:01:37 +0300
+Subject: [PATCH] asd
+
+---
+ .../network_helper.hpp                        |  8 ++
+ .../scaleshift_to_eltwise.hpp                 | 26 +++++
+ .../src/layer_transformation.cpp              |  2 +-
+ .../src/transformer.cpp                       |  6 +-
+ .../scaleshift_to_eltwise_transformation.cpp  | 30 ++++++
+ .../scaleshift_to_eltwise_transformation.cpp  |  0
+ .../scaleshift_to_eltwise_transformation.hpp  | 26 +++++
+ .../scaleshift_to_eltwise_transformation.cpp  | 97 +++++++++++++++++++
+ .../layer_transformation.hpp                  |  4 +-
+ 9 files changed, 196 insertions(+), 3 deletions(-)
+ create mode 100644 inference-engine/src/low_precision_transformations/include/low_precision_transformations/scaleshift_to_eltwise.hpp
+ create mode 100644 inference-engine/tests/functional/plugin/cpu/shared_tests_instances/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.cpp
+ create mode 100644 inference-engine/tests/functional/plugin/gpu/shared_tests_instances/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.cpp
+ create mode 100644 inference-engine/tests/functional/plugin/shared/include/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.hpp
+ create mode 100644 inference-engine/tests/functional/plugin/shared/src/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.cpp
+
+diff --git a/inference-engine/src/low_precision_transformations/include/low_precision_transformations/network_helper.hpp b/inference-engine/src/low_precision_transformations/include/low_precision_transformations/network_helper.hpp
+index 6803d59918..9696b78bd4 100644
+--- a/inference-engine/src/low_precision_transformations/include/low_precision_transformations/network_helper.hpp
++++ b/inference-engine/src/low_precision_transformations/include/low_precision_transformations/network_helper.hpp
+@@ -125,6 +125,13 @@ public:
+         const DequantizationDetails& dequantizationDetails,
+         const std::string& name = "");
+ 
++    static CNNLayerPtr addDequatizationEltwiseBetween(
++            TransformationContext& context,
++            const CNNLayerPtr parent,
++            const CNNLayerPtr child,
++            const DequantizationDetails& dequantizationDetails,
++            const std::string& name = "");
++
+     static CNNLayerPtr insertScaleShift(
+         TransformationContext& context,
+         const CNNLayerPtr parent,
+@@ -146,6 +153,7 @@ public:
+ 
+     IE_SUPPRESS_DEPRECATED_START
+     static void fillInScaleShift(ScaleShiftLayer* layer, const size_t channels, const float* scales, const float* shifts);
++    static void fillInEltwise(EltwiseLayer* layer, const size_t channels, const float* values);
+     IE_SUPPRESS_DEPRECATED_END
+ 
+     static std::vector<CNNLayerPtr> getChildren(const CNNLayer& layer, const std::string& exceptionLayerName = "");
+diff --git a/inference-engine/src/low_precision_transformations/include/low_precision_transformations/scaleshift_to_eltwise.hpp b/inference-engine/src/low_precision_transformations/include/low_precision_transformations/scaleshift_to_eltwise.hpp
+new file mode 100644
+index 0000000000..072fafa59c
+--- /dev/null
++++ b/inference-engine/src/low_precision_transformations/include/low_precision_transformations/scaleshift_to_eltwise.hpp
+@@ -0,0 +1,26 @@
++// Copyright (C) 2020 Intel Corporation
++// SPDX-License-Identifier: Apache-2.0
++//
++
++#pragma once
++
++#include <algorithm>
++#include "ie_layers.h"
++#include "low_precision_transformations/transformation_context.hpp"
++#include "low_precision_transformations/layer_transformation.hpp"
++
++namespace InferenceEngine {
++namespace details {
++
++class INFERENCE_ENGINE_API_CLASS(ScaleShiftToEltwiseTransformation) : public LayerTransformation {
++public:
++    ScaleShiftToEltwiseTransformation(const Params& params) : LayerTransformation(params) {}
++    ~ScaleShiftToEltwiseTransformation() override {}
++    void transform(TransformationContext& context, CNNLayer& layer) const override;
++    bool canBeTransformed(const TransformationContext& context, const CNNLayer& layer) const override;
++private:
++    
++};
++
++}  // namespace details
++}  // namespace InferenceEngine
+diff --git a/inference-engine/src/low_precision_transformations/src/layer_transformation.cpp b/inference-engine/src/low_precision_transformations/src/layer_transformation.cpp
+index 958070640c..91e742b429 100644
+--- a/inference-engine/src/low_precision_transformations/src/layer_transformation.cpp
++++ b/inference-engine/src/low_precision_transformations/src/layer_transformation.cpp
+@@ -258,7 +258,7 @@ void LayerTransformation::fillFromDequantizationLayer(
+     Blob::Ptr shiftsBlob = CNNNetworkHelper::getBlob(dequantizationLayerPtr, "biases");
+     const auto shiftsBuffer = CNNNetworkHelper::getFloatData(shiftsBlob);
+ 
+-    const size_t inputCannelsCount = CNNNetworkHelper::getInputChannelsCount(dequantizationLayer);
++    const size_t inputCannelsCount = dequantizationLayer.insData[0].lock()->getDims()[1]; // CNNNetworkHelper::getInputChannelsCount(dequantizationLayer);
+     dequantizationScales.resize(inputCannelsCount);
+     dequantizationShifts.resize(inputCannelsCount);
+     for (size_t channel = 0; channel < inputCannelsCount; ++channel) {
+diff --git a/inference-engine/src/low_precision_transformations/src/transformer.cpp b/inference-engine/src/low_precision_transformations/src/transformer.cpp
+index d4a075f54b..b8e1f15742 100644
+--- a/inference-engine/src/low_precision_transformations/src/transformer.cpp
++++ b/inference-engine/src/low_precision_transformations/src/transformer.cpp
+@@ -38,9 +38,11 @@
+ #include "low_precision_transformations/power.hpp"
+ #include "low_precision_transformations/reshape.hpp"
+ #include "low_precision_transformations/scaleshift_to_convolution.hpp"
++#include "low_precision_transformations/scaleshift_to_eltwise.hpp"
+ #include "low_precision_transformations/squeeze.hpp"
+ #include "low_precision_transformations/eltwise.hpp"
+ 
++
+ // uncomment to display precision info during low precision transformations
+ // #define DISPLAY_PECISION
+ 
+@@ -214,7 +216,9 @@ LowPrecisionTransformations LowPrecisionTransformer::getAllTransformations(const
+         std::map<std::string, std::vector<LayerTransformationPtr>>({
+             { "ScaleShift", {
+                 LayerTransformationPtr(new DequantizationFuseTransformation(params)),
+-                LayerTransformationPtr(new ScaleShiftToConvolutionTransformation(params)) }
++                LayerTransformationPtr(new ScaleShiftToConvolutionTransformation(params)),
++                LayerTransformationPtr(new ScaleShiftToEltwiseTransformation(params))
++                }
+             },
+             { "FakeQuantize", { LayerTransformationPtr(new FuseFakeQuantizeAndScaleShiftTransformation(params)) }}
+         }));
+diff --git a/inference-engine/tests/functional/plugin/cpu/shared_tests_instances/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.cpp b/inference-engine/tests/functional/plugin/cpu/shared_tests_instances/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.cpp
+new file mode 100644
+index 0000000000..32d218945c
+--- /dev/null
++++ b/inference-engine/tests/functional/plugin/cpu/shared_tests_instances/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.cpp
+@@ -0,0 +1,30 @@
++// Copyright (C) 2020 Intel Corporation
++// SPDX-License-Identifier: Apache-2.0
++//
++
++#include <vector>
++
++#include "subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.hpp"
++#include "common_test_utils/test_constants.hpp"
++
++using namespace LayerTestsDefinitions;
++
++namespace {
++    const std::vector<InferenceEngine::Precision> netPrecisions = {
++            InferenceEngine::Precision::FP32,
++            InferenceEngine::Precision::FP16
++    };
++
++    const std::vector<InferenceEngine::details::LayerTransformation::Params> trasformationParamValues = {
++        LayerTestsUtils::LayerTransformationParamsFactory::createParamCpu(),
++        LayerTestsUtils::LayerTransformationParamsFactory::createParamU8I8()
++    };
++
++    INSTANTIATE_TEST_CASE_P(LPT, ScaleShiftToEltwiseTransformation,
++        ::testing::Combine(
++            ::testing::ValuesIn(netPrecisions),
++            ::testing::Values(InferenceEngine::SizeVector({ 1, 3, 256, 256 })),
++            ::testing::Values(CommonTestUtils::DEVICE_CPU),
++            ::testing::ValuesIn(trasformationParamValues)),
++        ScaleShiftToEltwiseTransformation::getTestCaseName);
++}  // namespace
+diff --git a/inference-engine/tests/functional/plugin/gpu/shared_tests_instances/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.cpp b/inference-engine/tests/functional/plugin/gpu/shared_tests_instances/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.cpp
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/inference-engine/tests/functional/plugin/shared/include/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.hpp b/inference-engine/tests/functional/plugin/shared/include/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.hpp
+new file mode 100644
+index 0000000000..9e3f068abd
+--- /dev/null
++++ b/inference-engine/tests/functional/plugin/shared/include/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.hpp
+@@ -0,0 +1,26 @@
++// Copyright (C) 2020 Intel Corporation
++// SPDX-License-Identifier: Apache-2.0
++//
++
++#pragma once
++
++#include <string>
++#include <memory>
++
++#include "functional_test_utils/low_precision_transformations/layer_transformation.hpp"
++
++namespace LayerTestsDefinitions {
++
++    class ScaleShiftToEltwiseTransformation : public LayerTestsUtils::LayerTransformation<LayerTestsUtils::LayerTransformationParams> {
++    public:
++        static std::string getTestCaseName(testing::TestParamInfo<LayerTestsUtils::LayerTransformationParams> obj);
++
++    protected:
++        void SetUp() override;
++
++    private:
++        std::shared_ptr<ngraph::opset1::FakeQuantize> makeFakeQuantize(const ngraph::Output<ngraph::Node>& output);
++        void validate();
++    };
++
++}  // namespace LayerTestsDefinitions
+diff --git a/inference-engine/tests/functional/plugin/shared/src/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.cpp b/inference-engine/tests/functional/plugin/shared/src/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.cpp
+new file mode 100644
+index 0000000000..6ab2dbb1b5
+--- /dev/null
++++ b/inference-engine/tests/functional/plugin/shared/src/subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.cpp
+@@ -0,0 +1,97 @@
++// Copyright (C) 2020 Intel Corporation
++// SPDX-License-Identifier: Apache-2.0
++//
++
++#include <memory>
++#include <tuple>
++#include <vector>
++#include <string>
++
++#include <ie_core.hpp>
++
++#include "common_test_utils/common_utils.hpp"
++#include "functional_test_utils/plugin_cache.hpp"
++#include "functional_test_utils/layer_test_utils.hpp"
++#include "functional_test_utils/blob_utils.hpp"
++
++#include "ngraph_functions/pass/convert_prc.hpp"
++
++#include "subgraph_tests/low_precision_transformations/scaleshift_to_eltwise_transformation.hpp"
++
++namespace LayerTestsDefinitions {
++
++std::string ScaleShiftToEltwiseTransformation::getTestCaseName(testing::TestParamInfo<LayerTestsUtils::LayerTransformationParams> obj) {
++    InferenceEngine::Precision netPrecision;
++    InferenceEngine::SizeVector inputShapes;
++    std::string targetDevice;
++    InferenceEngine::details::LayerTransformation::Params params;
++    std::tie(netPrecision, inputShapes, targetDevice, params) = obj.param;
++
++    std::ostringstream result;
++    result << netPrecision.name() << "_" << targetDevice << "_" << toString(params);
++    return result.str();
++}
++
++
++void ScaleShiftToEltwiseTransformation::SetUp() {
++    SetRefMode(LayerTestsUtils::RefMode::IE);
++
++    InferenceEngine::SizeVector inputShape;
++    InferenceEngine::Precision netPrecision;
++    InferenceEngine::details::LayerTransformation::Params params;
++    std::tie(netPrecision, inputShape, targetDevice, params) = this->GetParam();
++    auto ngPrc = FuncTestUtils::PrecisionUtils::convertIE2nGraphPrc(netPrecision);
++
++    const auto paramNode = std::make_shared<ngraph::op::Parameter>(ngPrc, ngraph::Shape(inputShape));
++    const auto fakeQuantize = makeFakeQuantize(paramNode->output(0));
++
++    const std::vector<size_t> axisVector{ 0, 0, inputShape[2] / 2, 2, inputShape[3] / 2, 2 };
++    const auto axes = std::make_shared<ngraph::op::Constant>(ngraph::element::u64, ngraph::Shape{ axisVector.size() }, axisVector);
++    const auto reshape = std::make_shared<ngraph::opset1::Reshape>(fakeQuantize->output(0), axes->output(0), true);
++
++    ngraph::ResultVector results{ std::make_shared<ngraph::opset1::Result>(reshape) };
++    function = std::make_shared<ngraph::Function>(results, ngraph::ParameterVector{ paramNode }, "ScaleShiftToEltwiseTransformation");
++
++    // TODO: move to some another place
++    validate();
++}
++
++std::shared_ptr<ngraph::opset1::FakeQuantize> ScaleShiftToEltwiseTransformation::makeFakeQuantize(const ngraph::Output<ngraph::Node>& input) {
++    auto inputLowConst = std::make_shared<ngraph::op::Constant>(ngraph::element::f32, ngraph::Shape{ 1, 1, 1, 1 }, std::vector<float>{ 0.f });
++    auto inputHighConst = std::make_shared<ngraph::op::Constant>(ngraph::element::f32, ngraph::Shape{ 1, 1, 1, 1 }, std::vector<float>{ 256.f });
++    auto outputLowConst = std::make_shared<ngraph::op::Constant>(ngraph::element::f32, ngraph::Shape{ 1, 1, 1, 1 }, std::vector<float>{ 0.f });
++    auto outputHighConst = std::make_shared<ngraph::op::Constant>(ngraph::element::f32, ngraph::Shape{ 1, 1, 1, 1 }, std::vector<float>{ 256.f / 2.f });
++    auto fakeQuantize = std::make_shared<ngraph::opset1::FakeQuantize>(input, inputLowConst, inputHighConst, outputLowConst, outputHighConst, 256ul);
++    return fakeQuantize;
++}
++
++IE_SUPPRESS_DEPRECATED_START
++
++void ScaleShiftToEltwiseTransformation::validate() {
++    InferenceEngine::SizeVector inputShape;
++    InferenceEngine::Precision netPrecision;
++    InferenceEngine::details::LayerTransformation::Params params;
++    std::tie(netPrecision, inputShape, targetDevice, params) = this->GetParam();
++    const InferenceEngine::CNNNetwork network = transform(params);
++
++    InferenceEngine::OutputsDataMap outputs = network.getOutputsInfo();
++    EXPECT_EQ(1, outputs.size());
++
++    std::map<std::string, InferenceEngine::DataPtr>::iterator it = outputs.begin();
++    const InferenceEngine::CNNLayerPtr outputLayer = it->second->getCreatorLayer().lock();
++    network.serialize("C:\\Users\\vzinovie\\Documents\\dldt\\sstoew.xml", "C:\\Users\\vzinovie\\Documents\\dldt\\sstoew.bin");
++    EXPECT_TRUE(outputLayer != nullptr);
++    //EXPECT_EQ("Eltwise", outputLayer->type);
++}
++
++IE_SUPPRESS_DEPRECATED_END
++
++TEST_P(ScaleShiftToEltwiseTransformation, CompareWithRefImpl) {
++    Run();
++
++    if (targetDevice == std::string{ CommonTestUtils::DEVICE_GPU }) {
++        PluginCache::get().reset();
++    }
++};
++
++}  // namespace LayerTestsDefinitions
+diff --git a/inference-engine/tests/ie_test_utils/functional_test_utils/low_precision_transformations/layer_transformation.hpp b/inference-engine/tests/ie_test_utils/functional_test_utils/low_precision_transformations/layer_transformation.hpp
+index 63b6768c2e..0315642f6b 100644
+--- a/inference-engine/tests/ie_test_utils/functional_test_utils/low_precision_transformations/layer_transformation.hpp
++++ b/inference-engine/tests/ie_test_utils/functional_test_utils/low_precision_transformations/layer_transformation.hpp
+@@ -11,6 +11,7 @@
+ #include "low_precision_transformations/convolution.hpp"
+ #include "low_precision_transformations/dequantization_fuse.hpp"
+ #include "low_precision_transformations/scaleshift_to_convolution.hpp"
++#include "low_precision_transformations/scaleshift_to_eltwise.hpp"
+ 
+ namespace LayerTestsUtils {
+ 
+@@ -41,7 +42,8 @@ public:
+                 addCleanup({
+                         InferenceEngine::details::LayerTransformationPtr(new InferenceEngine::details::ScaleShiftToConvolutionTransformation(
+                             InferenceEngine::details::LayerTransformation::Params(params).setPrecisionsOnActivations({ InferenceEngine::Precision::U8 }))),
+-                        InferenceEngine::details::LayerTransformationPtr(new InferenceEngine::details::DequantizationFuseTransformation(params))
++                        InferenceEngine::details::LayerTransformationPtr(new InferenceEngine::details::DequantizationFuseTransformation(params)),
++                        InferenceEngine::details::LayerTransformationPtr(new InferenceEngine::details::ScaleShiftToEltwiseTransformation(params))
+                     },
+                     "ScaleShift");
+         } else if (targetDevice == "GPU") {
+-- 
+2.24.1.windows.2
+
