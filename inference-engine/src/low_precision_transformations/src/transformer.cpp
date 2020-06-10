@@ -190,10 +190,16 @@ LowPrecisionTransformations LowPrecisionTransformer::getAllTransformations(const
             { "Resample", LayerTransformationPtr(new ResampleTransformation(params)) },
             { "Power", LayerTransformationPtr(new PowerTransformation(params)) }
         }),
-        std::map<std::string, LayerTransformationPtr>({
-            { "FakeQuantize", LayerTransformationPtr(new FuseFakeQuantizeAndScaleShiftTransformation(params)) },
-            { "ScaleShift", LayerTransformationPtr(new ScaleShiftToConvolutionTransformation(params)) },
-        }));
+        std::map<std::string, std::vector<LayerTransformationPtr>>({
+             { "ScaleShift", {
+                 LayerTransformationPtr(new DequantizationFuseTransformation(params)),
+-                LayerTransformationPtr(new ScaleShiftToConvolutionTransformation(params)) }
++                LayerTransformationPtr(new ScaleShiftToConvolutionTransformation(params)),
++                LayerTransformationPtr(new ScaleShiftToEltwiseTransformation(params))
++                }
+             },
+             { "FakeQuantize", { LayerTransformationPtr(new FuseFakeQuantizeAndScaleShiftTransformation(params)) }}
+         }));
 }
 
 LowPrecisionTransformer::LowPrecisionTransformer(): transformations(LowPrecisionTransformer::getAllTransformations()) {}

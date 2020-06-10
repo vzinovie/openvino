@@ -258,7 +258,7 @@ void LayerTransformation::fillFromDequantizationLayer(
     Blob::Ptr shiftsBlob = CNNNetworkHelper::getBlob(dequantizationLayerPtr, "biases");
     const auto shiftsBuffer = CNNNetworkHelper::getFloatData(shiftsBlob);
 
-    const size_t inputCannelsCount = CNNNetworkHelper::getInputChannelsCount(dequantizationLayer);
+    const size_t inputCannelsCount = dequantizationLayer.insData[0].lock()->getDims()[1]; // CNNNetworkHelper::getInputChannelsCount(dequantizationLayer);
     dequantizationScales.resize(inputCannelsCount);
     dequantizationShifts.resize(inputCannelsCount);
     for (size_t channel = 0; channel < inputCannelsCount; ++channel) {
