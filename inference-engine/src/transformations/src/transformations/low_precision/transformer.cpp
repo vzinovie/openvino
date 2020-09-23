@@ -389,6 +389,7 @@ void LowPrecisionTransformer::transform(std::shared_ptr<Function> network) {
         registerAllMatchers(transformations.transformations, pass, context);
         pass.run_on_function(network);
     }
+    ngraph::pass::VisualizeTree("/home/vzinoviev/work/model_dumps/ngraph_transformed_before_cleanup.dot").run_on_function(network);
 
     {
         // Step #3: cleanup transformations execution

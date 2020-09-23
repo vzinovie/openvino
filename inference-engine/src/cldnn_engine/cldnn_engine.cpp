@@ -182,7 +182,7 @@ InferenceEngine::ICNNNetwork::Ptr clDNNEngine::CloneAndTransformNetwork(const In
             // ti_manager.register_pass<ngraph::pass::UnrollTensorIterator>();
             ti_manager.run_passes(nGraphFunc);
         }
-
+        ngraph::pass::VisualizeTree("/home/vzinoviev/work/model_dumps/ngraph_before_transform.dot").run_on_function(nGraphFunc);
         using namespace ngraph::pass::low_precision;
         if (enableInt8) {
             auto params = LayerTransformation::Params(
@@ -194,6 +194,7 @@ InferenceEngine::ICNNNetwork::Ptr clDNNEngine::CloneAndTransformNetwork(const In
                 .add<MatMulTransformation, ngraph::opset1::MatMul>(LayerTransformation::Params(params).setSupportAsymmetricQuantization(false)));
 
             transformer.transform(nGraphFunc);
+            ngraph::pass::VisualizeTree("/home/vzinoviev/work/model_dumps/ngraph_transformed.dot").run_on_function(nGraphFunc);
         }
 
         {
@@ -210,6 +211,8 @@ InferenceEngine::ICNNNetwork::Ptr clDNNEngine::CloneAndTransformNetwork(const In
         }
 
         clonedNetwork = InferenceEngine::details::convertFunctionToICNNNetwork(nGraphFunc, *clonedNetwork);
+        clonedNetwork->serialize("/home/vzinoviev/work/model_dumps/ngraph_transformed.xml",
+                "/home/vzinoviev/work/model_dumps/ngraph_transformed.bin", nullptr);
     }
 
     auto implNetwork = std::dynamic_pointer_cast<InferenceEngine::details::CNNNetworkImpl>(clonedNetwork);

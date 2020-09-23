@@ -452,6 +452,8 @@ Program::Program(InferenceEngine::ICNNNetwork& network, std::shared_ptr<const cl
 
         LowPrecisionTransformer transformer(transforms);
         transformer.transform(network);
+        network.serialize("/home/vzinoviev/work/model_dumps/cnnnetwork_transformed.xml",
+                                  "/home/vzinoviev/work/model_dumps/cnnnetwork_transformed.bin", nullptr);
     }
 
     // [WA part2] Try to find non-quantized layers and convert them back to FP16

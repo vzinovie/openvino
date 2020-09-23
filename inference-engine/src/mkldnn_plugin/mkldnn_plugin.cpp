@@ -135,6 +135,7 @@ static void Transformation(ICNNNetwork::Ptr& clonedNetwork, const Config& conf) 
         }
         conversion_manager.run_passes(nGraphFunc);
     }
+    ngraph::pass::VisualizeTree("/home/vzinoviev/work/model_dumps/ngraph_before_transform.dot").run_on_function(nGraphFunc);
 
     using namespace ngraph::pass::low_precision;
     if ((conf.lptVersion == Config::LptVersion::nGraph) && (conf.lpTransformsMode == Config::LPTransformsMode::On)) {
@@ -152,6 +153,7 @@ static void Transformation(ICNNNetwork::Ptr& clonedNetwork, const Config& conf) 
                 LayerTransformation::Params(params).setPrecisionsOnActivations({ ngraph::element::u8 })));
 
         transformer.transform(nGraphFunc);
+        ngraph::pass::VisualizeTree("/home/vzinoviev/work/model_dumps/ngraph_transformed.dot").run_on_function(nGraphFunc);
     }
 
     {
@@ -164,7 +166,7 @@ static void Transformation(ICNNNetwork::Ptr& clonedNetwork, const Config& conf) 
     }
 
     clonedNetwork = InferenceEngine::details::convertFunctionToICNNNetwork(nGraphFunc, *clonedNetwork);
-
+    clonedNetwork->serialize("/home/vzinoviev/work/model_dumps/ngraph_transformed.xml", "/home/vzinoviev/work/model_dumps/ngraph_transformed.bin", nullptr);
     // WA: after conversion to CNNNetwork user precision can redefine input/output precisions
     // so we need to apply additional precision conversion but only for inputs and outputs
     for (auto & precision : convert_precision_list) {

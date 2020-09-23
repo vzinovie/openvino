@@ -30,6 +30,7 @@
 #include "legacy/graph_tools.hpp"
 #include "legacy/details/ie_cnn_network_tools.h"
 #include <legacy/cnn_network_impl.hpp>
+#include <ngraph/pass/visualize_tree.hpp>
 #include "network_serializer_v7.hpp"
 
 using namespace std;
@@ -105,6 +106,8 @@ CNNNetworkImpl::CNNNetworkImpl(const ICNNNetwork & ngraphImpl) {
     manager.register_pass<::ngraph::pass::ConvertOpSet2ToOpSet1>();
     manager.register_pass<::ngraph::pass::ConvertOpSet1ToLegacy>();
     manager.run_passes(graph);
+
+    ngraph::pass::VisualizeTree("/home/vzinoviev/work/model_dumps/after_legacy_gna.dot").run_on_function(graph);
 
     InferenceEngine::details::convertFunctionToICNNNetwork(graph, ngraphImpl, this, false);
 }
