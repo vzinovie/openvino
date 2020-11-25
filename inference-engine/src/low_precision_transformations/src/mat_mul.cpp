@@ -52,12 +52,11 @@ bool MatMulTransformation::transform(TransformationContext &context, ngraph::pat
     }
 
     const std::shared_ptr<opset1::MatMul> newMatMul = std::make_shared<ngraph::op::TypeRelaxed<opset1::MatMul>>(
-        std::vector<element::Type>({ element::f32, element::f32 }), std::vector<element::Type>({}),
-        ngraph::op::TemporaryReplaceOutputType(dequantization1.data, element::f32).get(),
-        ngraph::op::TemporaryReplaceOutputType(dequantization2.data, element::f32).get(),
+        std::vector<element::Type>({ deqPrecision, deqPrecision }), std::vector<element::Type>({ deqPrecision }),
+        ngraph::op::TemporaryReplaceOutputType(dequantization1.data, deqPrecision).get(),
+        ngraph::op::TemporaryReplaceOutputType(dequantization2.data, deqPrecision).get(),
         matMul->get_transpose_a(),
         matMul->get_transpose_b());
-    NetworkHelper::setOutDataPrecisionForTypeRelaxed(newMatMul, matMul->get_output_element_type(0));
     NetworkHelper::copyInfo(matMul, newMatMul);
 
     std::shared_ptr<Node> parent = newMatMul;
@@ -130,7 +129,13 @@ bool MatMulTransformation::transform(TransformationContext &context, ngraph::pat
     }
 
     const auto newMulConst = NetworkHelper::toScalarIfPossible(fold<ngraph::opset1::Multiply>(mulConst1, mulConst2));
-    const std::shared_ptr<opset1::Multiply> newMultiply = std::make_shared<DequantizationMultiply>(parent, newMulConst);
+
+    const auto newMultiply = std::make_shared<op::TypeRelaxed<DequantizationMultiply>>(
+        std::vector<element::Type>{ deqPrecision, deqPrecision },
+        std::vector<element::Type>{ dequantization1.multiply->get_output_element_type(0) },
+        ngraph::op::TemporaryReplaceOutputType(parent, deqPrecision).get(),
+        ngraph::op::TemporaryReplaceOutputType(newMulConst, deqPrecision).get());
+
     newMultiply->set_friendly_name(newMatMul->get_friendly_name() + "/DequantizationMultiply");
 
     replace_node(matMul, newMultiply);
