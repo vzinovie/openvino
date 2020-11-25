@@ -30,6 +30,7 @@ LayerTransformation::LayerTransformation(const Params& params) :
     supportAsymmetricQuantization(params.supportAsymmetricQuantization),
     precisionsOnActivations(params.precisionsOnActivations),
     precisionsOnWeights(params.precisionsOnWeights),
+    deqPrecision(params.deqPrecision),
     layerTransformationsManager(nullptr),
     paramsManager(nullptr),
     quantizationIntervalAsymmetryThreshold(0.002f),
