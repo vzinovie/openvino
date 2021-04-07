@@ -129,7 +129,7 @@ std::shared_ptr<opset1::FakeQuantize> FakeQuantizeTransformation::fuseElementwis
         const auto valueVec = as_type_ptr<opset1::Constant>(value)->cast_vector<float>();
 
         // avoid division by zero
-        if (std::any_of(valueVec.cbegin(), valueVec.cend(), [](const float value) { return (value == 0.f) || (std::abs(value) < 1.e-32); })) {
+//        if (std::any_of(valueVec.cbegin(), valueVec.cend(), [](const float value) { return (value == 0.f) || (std::abs(value) < 1.e-32); })) {
 //            auto inputLowConstValues = as_type_ptr<opset1::Constant>(inputLowConst_f32)->cast_vector<float>();
 //            auto inputHighConstValues = as_type_ptr<opset1::Constant>(inputHighConst_f32)->cast_vector<float>();
 //            auto outputLowConstValues =  as_type_ptr<opset1::Constant>(outputLowConst_f32)->cast_vector<float>();
@@ -177,10 +177,10 @@ std::shared_ptr<opset1::FakeQuantize> FakeQuantizeTransformation::fuseElementwis
 //            outputLowConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, outputLowConstValues);
 //            outputHighConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, outputHighConstValues);
             //return nullptr;
-        } else {
+//        } else {
             inputLowConst_f32 = fold<opset1::Divide>(inputLowConst_f32, value);
             inputHighConst_f32 = fold<opset1::Divide>(inputHighConst_f32, value);
-        }
+//        }
 
         inputLowConst_f32 = fq::updateShape(inputLowConst_f32, fakeQuantize->get_output_shape(0));
         inputHighConst_f32 =  fq::updateShape(inputHighConst_f32, fakeQuantize->get_output_shape(0));
