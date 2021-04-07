@@ -176,7 +176,7 @@ std::shared_ptr<opset1::FakeQuantize> FakeQuantizeTransformation::fuseElementwis
 //            inputHighConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, inputHighConstValues);
 //            outputLowConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, outputLowConstValues);
 //            outputHighConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, outputHighConstValues);
-            return nullptr;
+            //return nullptr;
         } else {
             inputLowConst_f32 = fold<opset1::Divide>(inputLowConst_f32, value);
             inputHighConst_f32 = fold<opset1::Divide>(inputHighConst_f32, value);
