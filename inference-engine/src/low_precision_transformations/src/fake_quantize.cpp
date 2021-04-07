@@ -130,52 +130,53 @@ std::shared_ptr<opset1::FakeQuantize> FakeQuantizeTransformation::fuseElementwis
 
         // avoid division by zero
         if (std::any_of(valueVec.cbegin(), valueVec.cend(), [](const float value) { return (value == 0.f) || (std::abs(value) < 1.e-32); })) {
-            auto inputLowConstValues = as_type_ptr<opset1::Constant>(inputLowConst_f32)->cast_vector<float>();
-            auto inputHighConstValues = as_type_ptr<opset1::Constant>(inputHighConst_f32)->cast_vector<float>();
-            auto outputLowConstValues =  as_type_ptr<opset1::Constant>(outputLowConst_f32)->cast_vector<float>();
-            auto outputHighConstValues = as_type_ptr<opset1::Constant>(outputHighConst_f32)->cast_vector<float>();
-            const size_t inputIntervalsConstRank = inputLowConstValues.size();
-            const size_t outputIntervalsConstRank = outputLowConstValues.size();
-            const size_t multiplyConstRank = valueVec.size();
-            const size_t resultRank = std::max(inputIntervalsConstRank, multiplyConstRank);
-
-            const size_t outRank = std::max(resultRank, outputIntervalsConstRank);
-            const auto zeroMapping = NetworkHelper::fold_fake_quantize(std::make_shared<opset1::FakeQuantize>(
-                std::make_shared<opset1::Constant>(element::f32, Shape{outRank}, std::vector<float>(outRank, 0)),
-                fakeQuantize->get_input_node_shared_ptr(1),
-                fakeQuantize->get_input_node_shared_ptr(2),
-                fakeQuantize->get_input_node_shared_ptr(3),
-                fakeQuantize->get_input_node_shared_ptr(4),
-                fakeQuantize->get_levels() ));
-            auto zeroMappingValues = as_type_ptr<opset1::Constant>(zeroMapping)->cast_vector<float>();
-
-            const bool inputIntervalsConstBroadcasted = inputIntervalsConstRank < resultRank;
-            if (inputIntervalsConstBroadcasted) {
-                inputLowConstValues = std::vector<float>(resultRank, inputLowConstValues[0]);
-                inputHighConstValues = std::vector<float>(resultRank, inputHighConstValues[0]);
-            }
-            const bool outputIntervalsConstBroadcasted = outputIntervalsConstRank < resultRank;
-            if (outputIntervalsConstBroadcasted) {
-                outputLowConstValues = std::vector<float>(resultRank, outputLowConstValues[0]);
-                outputHighConstValues = std::vector<float>(resultRank, outputHighConstValues[0]);
-            }
-            const bool multiplyConstBroadcasted = multiplyConstRank < resultRank;
-            for (size_t i = 0; i < resultRank; ++i) {
-                const float denominator = valueVec[multiplyConstBroadcasted ? 0ul : i];
-                if ((denominator == 0.f) || (std::abs(denominator) < 1.e-32)) {
-                    outputLowConstValues[i] = zeroMappingValues[i];
-                    outputHighConstValues[i] = zeroMappingValues[i];
-                } else {
-                    inputLowConstValues[i] /= denominator;
-                    inputHighConstValues[i] /= denominator;
-                }
-            }
-
-            const Shape resultShape = multiplyConstBroadcasted ? inputLowConst_f32->get_output_shape(0) : constant->get_output_shape(0);
-            inputLowConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, inputLowConstValues);
-            inputHighConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, inputHighConstValues);
-            outputLowConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, outputLowConstValues);
-            outputHighConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, outputHighConstValues);
+//            auto inputLowConstValues = as_type_ptr<opset1::Constant>(inputLowConst_f32)->cast_vector<float>();
+//            auto inputHighConstValues = as_type_ptr<opset1::Constant>(inputHighConst_f32)->cast_vector<float>();
+//            auto outputLowConstValues =  as_type_ptr<opset1::Constant>(outputLowConst_f32)->cast_vector<float>();
+//            auto outputHighConstValues = as_type_ptr<opset1::Constant>(outputHighConst_f32)->cast_vector<float>();
+//            const size_t inputIntervalsConstRank = inputLowConstValues.size();
+//            const size_t outputIntervalsConstRank = outputLowConstValues.size();
+//            const size_t multiplyConstRank = valueVec.size();
+//            const size_t resultRank = std::max(inputIntervalsConstRank, multiplyConstRank);
+//
+//            const size_t outRank = std::max(resultRank, outputIntervalsConstRank);
+//            const auto zeroMapping = NetworkHelper::fold_fake_quantize(std::make_shared<opset1::FakeQuantize>(
+//                std::make_shared<opset1::Constant>(element::f32, Shape{outRank}, std::vector<float>(outRank, 0)),
+//                fakeQuantize->get_input_node_shared_ptr(1),
+//                fakeQuantize->get_input_node_shared_ptr(2),
+//                fakeQuantize->get_input_node_shared_ptr(3),
+//                fakeQuantize->get_input_node_shared_ptr(4),
+//                fakeQuantize->get_levels() ));
+//            auto zeroMappingValues = as_type_ptr<opset1::Constant>(zeroMapping)->cast_vector<float>();
+//
+//            const bool inputIntervalsConstBroadcasted = inputIntervalsConstRank < resultRank;
+//            if (inputIntervalsConstBroadcasted) {
+//                inputLowConstValues = std::vector<float>(resultRank, inputLowConstValues[0]);
+//                inputHighConstValues = std::vector<float>(resultRank, inputHighConstValues[0]);
+//            }
+//            const bool outputIntervalsConstBroadcasted = outputIntervalsConstRank < resultRank;
+//            if (outputIntervalsConstBroadcasted) {
+//                outputLowConstValues = std::vector<float>(resultRank, outputLowConstValues[0]);
+//                outputHighConstValues = std::vector<float>(resultRank, outputHighConstValues[0]);
+//            }
+//            const bool multiplyConstBroadcasted = multiplyConstRank < resultRank;
+//            for (size_t i = 0; i < resultRank; ++i) {
+//                const float denominator = valueVec[multiplyConstBroadcasted ? 0ul : i];
+//                if ((denominator == 0.f) || (std::abs(denominator) < 1.e-32)) {
+//                    outputLowConstValues[i] = zeroMappingValues[i];
+//                    outputHighConstValues[i] = zeroMappingValues[i];
+//                } else {
+//                    inputLowConstValues[i] /= denominator;
+//                    inputHighConstValues[i] /= denominator;
+//                }
+//            }
+//
+//            const Shape resultShape = multiplyConstBroadcasted ? inputLowConst_f32->get_output_shape(0) : constant->get_output_shape(0);
+//            inputLowConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, inputLowConstValues);
+//            inputHighConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, inputHighConstValues);
+//            outputLowConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, outputLowConstValues);
+//            outputHighConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, outputHighConstValues);
+            return nullptr;
         } else {
             inputLowConst_f32 = fold<opset1::Divide>(inputLowConst_f32, value);
             inputHighConst_f32 = fold<opset1::Divide>(inputHighConst_f32, value);
