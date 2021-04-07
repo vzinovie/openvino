@@ -220,36 +220,36 @@ std::shared_ptr<opset1::FakeQuantize> FakeQuantizeTransformation::fuseElementwis
     } else {
         return nullptr;
     }
-
-    // inverted input intervals transfer to output invert
-    const auto is_inverted = as_type_ptr<opset1::Constant>(fold<opset1::Greater>(inputLowConst_f32, inputHighConst_f32))->cast_vector<bool>();
-    if (std::any_of(is_inverted.begin(), is_inverted.end(), [](const bool value) { return value; })) {
-        auto inputLowConstValues = as_type_ptr<opset1::Constant>(inputLowConst_f32)->cast_vector<float>();
-        auto inputHighConstValues = as_type_ptr<opset1::Constant>(inputHighConst_f32)->cast_vector<float>();
-        auto outputLowConstValues =  as_type_ptr<opset1::Constant>(outputLowConst_f32)->cast_vector<float>();
-        auto outputHighConstValues = as_type_ptr<opset1::Constant>(outputHighConst_f32)->cast_vector<float>();
-        const size_t inputIntervalsConstRank = inputLowConstValues.size();
-        const size_t outputIntervalsConstRank = outputLowConstValues.size();
-        const size_t result_rank = is_inverted.size();
-        if (inputIntervalsConstRank != result_rank) {
-            inputLowConstValues = std::vector<float>(result_rank, inputLowConstValues[0]);
-            inputHighConstValues = std::vector<float>(result_rank, inputHighConstValues[0]);
-        } else if (outputIntervalsConstRank != result_rank) {
-            outputLowConstValues = std::vector<float>(result_rank, outputLowConstValues[0]);
-            outputHighConstValues = std::vector<float>(result_rank, outputHighConstValues[0]);
-        }
-        for (size_t i = 0; i < result_rank; ++i) {
-            if (is_inverted[i]) {
-                std::swap(inputLowConstValues[i], inputHighConstValues[i]);
-                std::swap(outputLowConstValues[i], outputHighConstValues[i]);
-            }
-        }
-        const Shape resultShape = inputIntervalsConstRank != result_rank ? outputLowConst_f32->get_shape() : inputLowConst_f32->get_shape();
-        inputLowConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, inputLowConstValues);
-        inputHighConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, inputHighConstValues);
-        outputLowConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, outputLowConstValues);
-        outputHighConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, outputHighConstValues);
-    }
+//
+//    // inverted input intervals transfer to output invert
+//    const auto is_inverted = as_type_ptr<opset1::Constant>(fold<opset1::Greater>(inputLowConst_f32, inputHighConst_f32))->cast_vector<bool>();
+//    if (std::any_of(is_inverted.begin(), is_inverted.end(), [](const bool value) { return value; })) {
+//        auto inputLowConstValues = as_type_ptr<opset1::Constant>(inputLowConst_f32)->cast_vector<float>();
+//        auto inputHighConstValues = as_type_ptr<opset1::Constant>(inputHighConst_f32)->cast_vector<float>();
+//        auto outputLowConstValues =  as_type_ptr<opset1::Constant>(outputLowConst_f32)->cast_vector<float>();
+//        auto outputHighConstValues = as_type_ptr<opset1::Constant>(outputHighConst_f32)->cast_vector<float>();
+//        const size_t inputIntervalsConstRank = inputLowConstValues.size();
+//        const size_t outputIntervalsConstRank = outputLowConstValues.size();
+//        const size_t result_rank = is_inverted.size();
+//        if (inputIntervalsConstRank != result_rank) {
+//            inputLowConstValues = std::vector<float>(result_rank, inputLowConstValues[0]);
+//            inputHighConstValues = std::vector<float>(result_rank, inputHighConstValues[0]);
+//        } else if (outputIntervalsConstRank != result_rank) {
+//            outputLowConstValues = std::vector<float>(result_rank, outputLowConstValues[0]);
+//            outputHighConstValues = std::vector<float>(result_rank, outputHighConstValues[0]);
+//        }
+//        for (size_t i = 0; i < result_rank; ++i) {
+//            if (is_inverted[i]) {
+//                std::swap(inputLowConstValues[i], inputHighConstValues[i]);
+//                std::swap(outputLowConstValues[i], outputHighConstValues[i]);
+//            }
+//        }
+//        const Shape resultShape = inputIntervalsConstRank != result_rank ? outputLowConst_f32->get_shape() : inputLowConst_f32->get_shape();
+//        inputLowConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, inputLowConstValues);
+//        inputHighConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, inputHighConstValues);
+//        outputLowConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, outputLowConstValues);
+//        outputHighConst_f32 = std::make_shared<opset1::Constant>(element::f32, resultShape, outputHighConstValues);
+//    }
 
     const auto data = fq::getData(eltwise);
     const size_t outputIdx = NetworkHelper::getParentOutputIndex(data, eltwise);
