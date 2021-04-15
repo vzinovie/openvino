@@ -173,7 +173,8 @@ public:
                 std::vector<element::Type> precisionsOnActivations = { element::u8, element::i8 },
                 std::vector<element::Type> precisionsOnWeights = { element::i8 },
                 element::Type deqPrecision = element::f32,
-                bool support3DTensorOnActivations = true) :
+                bool support3DTensorOnActivations = true,
+                bool changeFakeQuantizeLevelsFrom16to256 = true) :
                 updatePrecisions(updatePrecisions),
                 quantizedTensorAlignmentOnActivations(quantizedTensorAlignmentOnActivations),
                 quantizedTensorAlignmentOnWeights(quantizedTensorAlignmentOnWeights),
@@ -181,7 +182,8 @@ public:
                 precisionsOnActivations(precisionsOnActivations),
                 precisionsOnWeights(precisionsOnWeights),
                 deqPrecision(deqPrecision),
-                support3DTensorOnActivations(support3DTensorOnActivations) {
+                support3DTensorOnActivations(support3DTensorOnActivations),
+                changeFakeQuantizeLevelsFrom16to256(changeFakeQuantizeLevelsFrom16to256) {
             if (precisionsOnActivations.size() == 0ul) {
                 THROW_TRANSFORMATION_EXCEPTION << "precisions on activations are not specisifed";
             }
@@ -234,6 +236,7 @@ public:
         std::vector<element::Type> precisionsOnWeights;
         element::Type deqPrecision;
         bool support3DTensorOnActivations;
+        bool changeFakeQuantizeLevelsFrom16to256;
     };
 
     class PrecisionDetails {
@@ -310,6 +313,7 @@ protected:
     std::vector<element::Type> precisionsOnWeights;
     element::Type deqPrecision;
     bool support3DTensorOnActivations;
+    bool changeFakeQuantizeLevelsFrom16to256;
 
     // absolute value, used to determine quantization interval asymmetry
     float quantizationIntervalAsymmetryThreshold;
