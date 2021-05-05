@@ -173,7 +173,8 @@ public:
                 std::vector<element::Type> precisionsOnActivations = { element::u8, element::i8 },
                 std::vector<element::Type> precisionsOnWeights = { element::i8 },
                 element::Type deqPrecision = element::f32,
-                bool support3DTensorOnActivations = true) :
+                bool support3DTensorOnActivations = true,
+                bool deconvolutionSpecificChannelsRatio = false) :
                 updatePrecisions(updatePrecisions),
                 quantizedTensorAlignmentOnActivations(quantizedTensorAlignmentOnActivations),
                 quantizedTensorAlignmentOnWeights(quantizedTensorAlignmentOnWeights),
@@ -181,7 +182,8 @@ public:
                 precisionsOnActivations(precisionsOnActivations),
                 precisionsOnWeights(precisionsOnWeights),
                 deqPrecision(deqPrecision),
-                support3DTensorOnActivations(support3DTensorOnActivations) {
+                support3DTensorOnActivations(support3DTensorOnActivations),
+                deconvolutionSpecificChannelsRatio(deconvolutionSpecificChannelsRatio) {
             if (precisionsOnActivations.size() == 0ul) {
                 THROW_TRANSFORMATION_EXCEPTION << "precisions on activations are not specisifed";
             }
@@ -226,6 +228,11 @@ public:
             return *this;
         }
 
+        Params& setDeconvolutionSpecificChannelsRatio(const bool deconvolutionSpecificChannelsRatio) {
+            this->deconvolutionSpecificChannelsRatio = deconvolutionSpecificChannelsRatio;
+            return *this;
+        }
+
         bool updatePrecisions;
         QuantizedTensorAlignment quantizedTensorAlignmentOnActivations;
         QuantizedTensorAlignment quantizedTensorAlignmentOnWeights;
@@ -234,6 +241,7 @@ public:
         std::vector<element::Type> precisionsOnWeights;
         element::Type deqPrecision;
         bool support3DTensorOnActivations;
+        bool deconvolutionSpecificChannelsRatio;
     };
 
     class PrecisionDetails {
@@ -310,6 +318,7 @@ protected:
     std::vector<element::Type> precisionsOnWeights;
     element::Type deqPrecision;
     bool support3DTensorOnActivations;
+    bool deconvolutionSpecificChannelsRatio;
 
     // absolute value, used to determine quantization interval asymmetry
     float quantizationIntervalAsymmetryThreshold;
