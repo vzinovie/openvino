@@ -73,6 +73,7 @@
 #include <low_precision/mat_mul.hpp>
 #include <low_precision/strided_slice.hpp>
 #include <low_precision/network_helper.hpp>
+#include <low_precision/multiply_to_group_convolution.hpp>
 
 #include "cldnn_engine.h"
 #include "cldnn_executable_network.h"
@@ -382,7 +383,8 @@ InferenceEngine::CNNNetwork clDNNEngine::CloneAndTransformNetwork(const Inferenc
                     .setSupportAsymmetricQuantization(false)
                     .setSupport3DTensorOnActivations(false))
                 // INT8 StridedSlice not supported
-                .remove<StridedSliceTransformation, ngraph::opset1::StridedSlice>());
+                .remove<StridedSliceTransformation, ngraph::opset1::StridedSlice>()
+                .removeStandaloneCleanup<MultiplyToGroupConvolutionTransformation, ngraph::opset1::Multiply>());
 
             transformer.transform(nGraphFunc);
         }
